@@ -1,36 +1,36 @@
-# todo-http4s-doobie
+# score-http4s-doobie
 A sample project of a microservice using [http4s](http://http4s.org/), [doobie](http://tpolecat.github.io/doobie/),
 and [circe](https://github.com/circe/circe).
 
-The microservice allows CRUD of todo items with a description and an importance (high, medium, low).
+The microservice allows CRUD of score items with a description and an importance (high, medium, low).
 
 ## End points
 The end points are:
 
 Method | Url         | Description
 ------ | ----------- | -----------
-GET    | /todos      | Returns all todos.
-GET    | /todos/{id} | Returns the todo for the specified id, 404 when no todo present with this id.
-POST   | /todos      | Creates a todo, give as body JSON with the description and importance, returns a 201 with the created todo.
-PUT    | /todos/{id} | Updates an existing todo, give as body JSON with the description and importance, returns a 200 with the updated todo when a todo is present with the specified id, 404 otherwise.
-DELETE | /todos/{id} | Deletes the todo with the specified todo, 404 when no todo present with this id.
+GET    | /scores      | Returns all scores.
+GET    | /scores/{id} | Returns the score for the specified id, 404 when no score present with this id.
+POST   | /scores      | Creates a score, give as body JSON with the description and importance, returns a 201 with the created score.
+PUT    | /scores/{id} | Updates an existing score, give as body JSON with the description and importance, returns a 200 with the updated score when a score is present with the specified id, 404 otherwise.
+DELETE | /scores/{id} | Deletes the score with the specified score, 404 when no score present with this id.
 
 Here are some examples on how to use the microservice with curl, assuming it runs on the default port 8080:
 
-Create a todo:
-```curl -X POST --header "Content-Type: application/json" --data '{"description": "my todo", "importance": "high"}' http://localhost:8080/todos```
+Create a score:
+```curl -X POST --header "Content-Type: application/json" --data '{"description": "my score", "importance": "high"}' http://localhost:8080/scores```
 
-Get all todos:
-```curl http://localhost:8080/todos```
+Get all scores:
+```curl http://localhost:8080/scores```
 
-Get a single todo (assuming the id of the todo is 1):
-```curl http://localhost:8080/todos/1```
+Get a single score (assuming the id of the score is 1):
+```curl http://localhost:8080/scores/1```
 
-Update a todo (assuming the id of the todo is 1):
-```curl -X PUT --header "Content-Type: application/json" --data '{"description": "my todo", "importance": "low"}' http://localhost:8080/todos/1```
+Update a score (assuming the id of the score is 1):
+```curl -X PUT --header "Content-Type: application/json" --data '{"description": "my score", "importance": "low"}' http://localhost:8080/scores/1```
 
-Delete a todo (assuming the id of the todo is 1):
-```curl -X DELETE http://localhost:8080/todos/1```
+Delete a score (assuming the id of the score is 1):
+```curl -X DELETE http://localhost:8080/scores/1```
 
 ## http4s
 [http4s](http://http4s.org/) is used as the HTTP layer. http4s provides streaming and functional HTTP for Scala.
@@ -42,7 +42,7 @@ By using an effect monad, side effects are postponed until the last moment.
 http4s uses [fs2](https://github.com/functional-streams-for-scala/fs2) for streaming. This allows to return
 streams in the HTTP layer so the response doesn't need to be generated in memory before sending it to the client.
 
-In the example project this is done for the `GET /todos` endpoint.
+In the example project this is done for the `GET /scores` endpoint.
 
 ## doobie
 [doobie](http://tpolecat.github.io/doobie/) is used to connect to the database. This is a pure functional JDBC layer for Scala.

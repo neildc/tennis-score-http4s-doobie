@@ -1,0 +1,5 @@
+CREATE TABLE Score (
+  id SERIAL PRIMARY KEY,
+  p1 TEXT,
+  p2 TEXT,
+);
