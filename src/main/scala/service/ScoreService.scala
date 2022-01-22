@@ -5,92 +5,93 @@ import fs2.Stream
 import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
-import model.{Player, Score, State, ScoreNotFoundError }
+import model.{Player, Score, State, ScoreNotFoundError}
 import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.{Location, `Content-Type`}
 import org.http4s.{HttpRoutes, MediaType, Uri}
 import repository.ScoreRepository
+import org.http4s.Status
+
 class ScoreService(repository: ScoreRepository) extends Http4sDsl[IO] {
 
-  case class ScoreRequest(
-      gameId: Int,
-      player: Player
-  )
+  case class ScoreRequest(gameId: Long, player: Player)
 
-  case class ScoreResponseJson(
-      isDeuce: Boolean,
-      playerWithAdvantage: Option[Int],
-      playerThatWon: Option[Int],
-      p1Score: Int,
-      p2Score: Int
-  )
+  case class CreateResponseJson(gameId: Long)
 
-  def toScoreResponseJson(state: State): ScoreResponseJson = {
-    state match {
-      case model.NormalScoring((p1Score, p2Score)) => {
-        ScoreResponseJson(
-          isDeuce = false,
-          playerWithAdvantage = None,
-          playerThatWon = None,
-          p1Score = model.scoreToInt(p1Score),
-          p2Score = model.scoreToInt(p2Score)
-        )
-      }
-      case model.Deuce => {
-        ScoreResponseJson(
-          isDeuce = true,
-          playerWithAdvantage = None,
-          playerThatWon = None,
-          p1Score = 3,
-          p2Score = 3
-        )
-      }
-      case model.Advantage(player) => {
-        ScoreResponseJson(
-          isDeuce = true,
-          playerWithAdvantage = Some(model.playerToInt(player)),
-          playerThatWon = None,
-          p1Score = 3,
-          p2Score = 3
-        )
-      }
-      case model.Win(player) => {
-        ScoreResponseJson(
-          isDeuce = false,
-          playerWithAdvantage = None,
-          playerThatWon = Some(model.playerToInt(player)),
-          p1Score = 0,
-          p2Score = 0
-        )
-      }
-    }
+  type ScoreResponseJson = ScoreRepository.ScoreTable
 
+  def toScoreResponseJson(id: Long, s: State): ScoreResponseJson =
+    ScoreRepository.toScoreTable(id, s)
+
+  case class ScoreResponseStringJson(message: String)
+
+  def toScoreResponseStringJson(state: State): ScoreResponseStringJson = {
+    ScoreResponseStringJson(
+      state match {
+        case model.NormalScoring((p1Score, p2Score)) =>
+          s"P1: $p1Score, P2: $p2Score"
+        case model.Deuce             => "deuce"
+        case model.Advantage(player) => s"advantage ${player}"
+        case model.Win(player)       => s"${player} won"
+      }
+    )
   }
 
   val routes = HttpRoutes.of[IO] {
     case GET -> Root / "scores" / LongVar(gameId) =>
       for {
-        getResult <- repository.getScore(gameId)
-        response <- scoreResult(getResult)
+        scoreResult <- repository.getScore(gameId)
+        response <- scoreResult match {
+          case Left(ScoreNotFoundError) => NotFound("Score not found")
+          case Right(state) => Ok(toScoreResponseJson(gameId, state).asJson)
+        }
       } yield response
 
-    // case req @ POST -> Root / "scored" / LongVar(gameId) / "player" / LongVar(player) =>
-    //   for {
-    //     score <- req.decodeJson[Score]
-    //     createdScore <- repository.createScore(score)
-    //     response <- Created(
-    //       createdScore.asJson,
-    //       Location(Uri.unsafeFromString(s"/scores/${createdScore.id.get}"))
-    //     )
-    //   } yield response
+    case GET -> Root / "scoresString" / LongVar(gameId) =>
+      for {
+        scoreResult <- repository.getScore(gameId)
+        response <- scoreResult match {
+          case Left(ScoreNotFoundError) => NotFound("Score not found")
+          case Right(state) => Ok(toScoreResponseStringJson(state).asJson)
+        }
+      } yield response
+
+    case req @ POST -> Root / "startGame" =>
+      for {
+        getResult <- repository.createScore()
+        response <- Ok(CreateResponseJson(getResult).asJson)
+      } yield response
+
+    case req @ POST -> Root / "scored" / LongVar(gameId) / "player" / IntVar(
+          playerInt
+        ) =>
+      model.intToPlayer(playerInt) match {
+        case None => BadRequest("Player invalid")
+        case Some(player) =>
+          for {
+            stateResult <- repository.getScore(gameId)
+            _ <- IO(println(stateResult))
+            updated <- stateResult match {
+              case Left(ScoreNotFoundError) => BadRequest("Not found game")
+              case Right(state) =>
+                repository
+                  .updateScore(gameId, model.score(player)(state))
+                  .flatMap(k =>
+                    k match {
+                      case None => InternalServerError("Failed to update")
+                      case Some(newState) => {
+                        println(newState)
+                        Ok(toScoreResponseJson(gameId, newState).asJson)
+                      }
+                    }
+                  )
+
+            }
+
+          } yield updated
+      }
 
   }
 
-  private def scoreResult(result: Either[ScoreNotFoundError.type, State]) = {
-    result match {
-      case Left(ScoreNotFoundError) => NotFound()
-      case Right(state)             => Ok(toScoreResponseJson(state).asJson)
-    }
-  }
 }

@@ -25,7 +25,7 @@ package object model {
       case _ => None
     }
 
-  sealed abstract class Player
+  sealed trait Player
   final case object P1 extends Player
   final case object P2 extends Player
 
@@ -52,19 +52,8 @@ package object model {
 
   def startGame(): State = NormalScoring((ScoreLove, ScoreLove))
 
-  // score expanded
-
-  /*
-  def player1Score(state: State): State = score(P1, state)
-  def player2Score(state: State): State = score(P2, state)
-
-  def player1Score: State => State = score(P1)
-  def player2Score: State => State = score(P2)
-   */
 
   def score(player: Player)(state: State): State =
-    // { throw new RuntimeException("asASD")}
-    // { val arr = Array(1,2); arr(5); }
     {
       (player, state) match {
         case (P1, NormalScoring((Score30, Score40))) =>

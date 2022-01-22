@@ -60,3 +60,5 @@ lazy val root = (project in file("."))
       "org.scalamock"         %% "scalamock"            % ScalaMockVersion  % "test"
     )
   )
+
+fork in run := true
