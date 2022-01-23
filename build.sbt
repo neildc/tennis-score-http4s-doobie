@@ -24,9 +24,8 @@ lazy val PureConfigVersion = "0.12.3"
 
 lazy val LogbackVersion = "1.2.3"
 
-lazy val ScalaTestVersion = "3.2.3"
+lazy val Specs2Version  = "4.10.6"
 
-lazy val ScalaMockVersion = "5.1.0"
 
 lazy val root = (project in file("."))
   .configs(IntegrationTest)
@@ -42,6 +41,7 @@ lazy val root = (project in file("."))
       "org.tpolecat"          %% "doobie-core"          % DoobieVersion,
       "org.tpolecat"          %% "doobie-h2"            % DoobieVersion,
       "org.tpolecat"          %% "doobie-hikari"        % DoobieVersion,
+      "org.tpolecat"          %% "doobie-specs2"        % DoobieVersion % "test",
 
       "com.h2database"        %  "h2"                   % H2Version,
 
@@ -56,8 +56,8 @@ lazy val root = (project in file("."))
 
       "ch.qos.logback"        %  "logback-classic"      % LogbackVersion,
 
-      "org.scalatest"         %% "scalatest"            % ScalaTestVersion  % "it,test",
-      "org.scalamock"         %% "scalamock"            % ScalaMockVersion  % "test"
+      "org.specs2"            %% "specs2-core"        % Specs2Version % "test",
+
     )
   )
 

@@ -19,10 +19,10 @@ class ScoreService(repository: ScoreRepository) extends Http4sDsl[IO] {
 
   case class CreateResponseJson(gameId: Long)
 
-  type ScoreResponseJson = ScoreRepository.ScoreTable
+  type ScoreResponseJson = ScoreRepository.ScoreTableRow
 
   def toScoreResponseJson(id: Long, s: State): ScoreResponseJson =
-    ScoreRepository.toScoreTable(id, s)
+    ScoreRepository.toScoreTableRow(id, s)
 
   case class ScoreResponseStringJson(message: String)
 

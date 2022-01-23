@@ -1,6 +1,6 @@
 
 CREATE TABLE Score (
-  id SERIAL PRIMARY KEY,
+  id BIGSERIAL PRIMARY KEY,
   isDeuce BOOLEAN NOT NULL DEFAULT false,
   playerWithAdvantage INT,
   playerThatWon INT,
@@ -8,7 +8,7 @@ CREATE TABLE Score (
   p2Score INT NOT NULL DEFAULT 0
 );
 
-INSERT INTO Score DEFAULT VALUES;
+-- INSERT INTO Score DEFAULT VALUES;
 
 -- CREATE TABLE Score (
 --   id SERIAL PRIMARY KEY,

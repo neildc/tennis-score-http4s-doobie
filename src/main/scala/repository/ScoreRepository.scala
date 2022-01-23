@@ -8,7 +8,7 @@ import doobie._
 import doobie.implicits._
 
 object ScoreRepository {
-  case class ScoreTable(
+  case class ScoreTableRow(
       id: Long,
       isDeuce: Boolean,
       playerWithAdvantage: Option[Int],
@@ -17,10 +17,10 @@ object ScoreRepository {
       p2Score: Int
   )
 
-  def toScoreTable(id: Long, state: State): ScoreTable = {
+  def toScoreTableRow(id: Long, state: State): ScoreTableRow = {
     state match {
       case model.NormalScoring((p1Score, p2Score)) => {
-        ScoreTable(
+        ScoreTableRow(
           id = id,
           isDeuce = false,
           playerWithAdvantage = None,
@@ -30,7 +30,7 @@ object ScoreRepository {
         )
       }
       case model.Deuce => {
-        ScoreTable(
+        ScoreTableRow(
           id = id,
           isDeuce = true,
           playerWithAdvantage = None,
@@ -40,7 +40,7 @@ object ScoreRepository {
         )
       }
       case model.Advantage(player) => {
-        ScoreTable(
+        ScoreTableRow(
           id = id,
           isDeuce = false,
           playerWithAdvantage = Some(model.playerToInt(player)),
@@ -50,7 +50,7 @@ object ScoreRepository {
         )
       }
       case model.Win(player) => {
-        ScoreTable(
+        ScoreTableRow(
           id = id,
           isDeuce = false,
           playerWithAdvantage = None,
@@ -63,7 +63,7 @@ object ScoreRepository {
 
   }
 
-  def fromScoreTable(st: ScoreTable): Option[State] = {
+  def fromScoreTableRow(st: ScoreTableRow): Option[State] = {
     if (st.isDeuce) { return Some(model.Deuce) }
 
     st.playerWithAdvantage.flatMap(model.intToPlayer) match {
@@ -83,28 +83,62 @@ object ScoreRepository {
       }
     }
   }
-}
 
-class ScoreRepository(transactor: Transactor[IO]) {
-  def getScore_(
+  // case class ScoreTableRow2(
+  //     id: Long,
+  //     isDeuce: Boolean,
+  //     playerWithAdvantage: Option[Int],
+  //     playerThatWon: Option[Int],
+  //     p1Score: Int,
+  //     p2Score: String
+  // )
+
+  // def getScoreSql2(
+  //     id: Long
+  // ) = {
+  //   sql"SELECT id, isDeuce, playerWithAdvantage, playerThatWon, p1Score, p2Score FROM score WHERE id = $id"
+  //     .query[ScoreRepository.ScoreTableRow2]
+  // }
+
+  def getScoreSql(
+      id: Long
+  ): doobie.Query0[ScoreRepository.ScoreTableRow] = {
+    sql"SELECT id, isDeuce, playerWithAdvantage, playerThatWon, p1Score, p2Score FROM score WHERE id = $id"
+      .query
+  }
+
+  def updateSql(id: Long, st: ScoreTableRow): doobie.Update0 = {
+    sql"""
+      UPDATE score
+      SET isDeuce = ${st.isDeuce},
+          playerWithAdvantage = ${st.playerWithAdvantage},
+          playerThatWon = ${st.playerThatWon},
+          p1Score = ${st.p1Score},
+          p2Score = ${st.p2Score}
+      WHERE id = $id
+    """.update
+  }
+
+  private def getScore_(
       id: Long
   ): ConnectionIO[Either[ScoreNotFoundError.type, State]] = {
-    sql"SELECT id, isDeuce, playerWithAdvantage, playerThatWon, p1Score, p2Score FROM score WHERE id = $id"
-      .query[ScoreRepository.ScoreTable]
-      .option
+    getScoreSql(id).option
       .map {
         case None => Left(ScoreNotFoundError)
         case Some(score) => {
-          ScoreRepository.fromScoreTable(score) match {
+          ScoreRepository.fromScoreTableRow(score) match {
             case Some(s) => Right(s)
             case None    => Left(ScoreNotFoundError)
           }
         }
       }
   }
+}
+
+class ScoreRepository(transactor: Transactor[IO]) {
 
   def getScore(id: Long): IO[Either[ScoreNotFoundError.type, State]] = {
-    getScore_(id).transact(transactor)
+    ScoreRepository.getScore_(id).transact(transactor)
   }
 
   def createScore(): IO[Long] = {
@@ -114,23 +148,12 @@ class ScoreRepository(transactor: Transactor[IO]) {
   }
 
   def updateScore(id: Long, newState: State): IO[Option[State]] = {
-    val st: ScoreRepository.ScoreTable =
-      ScoreRepository.toScoreTable(id, newState)
+    val scoreTableRow = ScoreRepository.toScoreTableRow(id, newState)
 
-    val update: ConnectionIO[Long] =
-      sql"""
-        UPDATE score
-        SET isDeuce = ${st.isDeuce},
-            playerWithAdvantage = ${st.playerWithAdvantage},
-            playerThatWon = ${st.playerThatWon},
-            p1Score = ${st.p1Score},
-            p2Score = ${st.p2Score}
-        WHERE id = $id"""
-        .update
-        .withUniqueGeneratedKeys[Long]("id")
-
-    update
-      .flatMap(gameId => getScore_(gameId))
+    ScoreRepository
+      .updateSql(id, scoreTableRow)
+      .withUniqueGeneratedKeys[Long]("id")
+      .flatMap(gameId => ScoreRepository.getScore_(gameId))
       .map(_.toOption)
       .transact(transactor)
 
