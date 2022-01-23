@@ -1,5 +1,5 @@
 lazy val commonSettings = Seq(
-  name := "score http4s doobie",
+  name := "tennis score http4s doobie",
   version := "1.0-SNAPSHOT",
   scalaVersion := "2.13.4",
   scalacOptions ++= Seq(

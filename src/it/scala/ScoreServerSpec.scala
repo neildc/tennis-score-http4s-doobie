@@ -2,7 +2,6 @@ import cats.effect.{ContextShift, IO, Timer}
 import config.Config
 import io.circe.Json
 import io.circe.literal._
-import io.circe.optics.JsonPath._
 import org.http4s.circe._
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.{Method, Request, Status, Uri}
