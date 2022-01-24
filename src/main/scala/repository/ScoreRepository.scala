@@ -55,7 +55,8 @@ object ScoreRepository {
   }
 
   sealed trait StateParseError
-  case class MultipleStatesPossibleFound(states: List[State]) extends StateParseError
+  case class MultipleStatesPossibleFound(states: List[State])
+      extends StateParseError
   case object NoStatesFound extends StateParseError
   // case class InvalidScores(p1Score: Int, p2Score: Int) extends StateParseError
 
@@ -82,15 +83,28 @@ object ScoreRepository {
           None
       }
 
-    val possibleStates: List[Option[State]] =
-      List(optDeuce, optAdvantage, optWin, optNormalScore)
+    (optAdvantage, optWin, optDeuce, optNormalScore) match {
 
-    val validStates: List[State] = possibleStates.flatten
+      // optNormalScore will probably be always (Some) 
+      // in the next 3 branches
 
-    if (validStates.length == 0) return Left(NoStatesFound)
-    if (validStates.length >  1) return Left(MultipleStatesPossibleFound(validStates))
+      case (None, None, Some(deuce), _)       => Right(deuce)
+      case (Some(advantage), None, None, _)   => Right(advantage)
+      case (None, Some(win), None, _)         => Right(win)
 
-    return Right(validStates.head)
+      case (None, None, None, Some(normalScore)) => Right(normalScore)
+      case (_) => {
+        val possibleStates: List[Option[State]] =
+          List(optAdvantage, optWin, optDeuce, optNormalScore)
+
+        val validStates: List[State] = possibleStates.flatten
+
+        if (validStates.length == 0)
+          return Left(NoStatesFound)
+        else
+          return Left(MultipleStatesPossibleFound(validStates))
+      }
+    }
   }
 
   // case class ScoreTableRow2(

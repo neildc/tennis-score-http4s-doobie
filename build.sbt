@@ -58,6 +58,8 @@ lazy val root = (project in file("."))
 
       "org.specs2"            %% "specs2-core"        % Specs2Version % "test",
 
+      "ru.tinkoff" %% "phobos-core" % "0.13.1",
+
     )
   )
 
