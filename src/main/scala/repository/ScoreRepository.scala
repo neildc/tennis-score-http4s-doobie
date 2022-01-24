@@ -18,70 +18,79 @@ object ScoreRepository {
   )
 
   def toScoreTableRow(id: Long, state: State): ScoreTableRow = {
+    val baseRow =
+      ScoreTableRow(
+        id = id,
+        isDeuce = false,
+        playerWithAdvantage = None,
+        playerThatWon = None,
+        p1Score = 0,
+        p2Score = 0
+      )
+
     state match {
-      case model.NormalScoring((p1Score, p2Score)) => {
-        ScoreTableRow(
-          id = id,
-          isDeuce = false,
-          playerWithAdvantage = None,
-          playerThatWon = None,
+      case model.NormalScoring((p1Score, p2Score)) =>
+        baseRow.copy(
           p1Score = model.scoreToInt(p1Score),
           p2Score = model.scoreToInt(p2Score)
         )
-      }
-      case model.Deuce => {
-        ScoreTableRow(
-          id = id,
+      case model.Deuce =>
+        baseRow.copy(
           isDeuce = true,
-          playerWithAdvantage = None,
-          playerThatWon = None,
           p1Score = 3,
           p2Score = 3
         )
-      }
-      case model.Advantage(player) => {
-        ScoreTableRow(
-          id = id,
-          isDeuce = false,
+      case model.Advantage(player) =>
+        baseRow.copy(
           playerWithAdvantage = Some(model.playerToInt(player)),
-          playerThatWon = None,
           p1Score = 3,
           p2Score = 3
         )
-      }
-      case model.Win(player) => {
-        ScoreTableRow(
-          id = id,
-          isDeuce = false,
-          playerWithAdvantage = None,
-          playerThatWon = Some(model.playerToInt(player)),
-          p1Score = 0,
-          p2Score = 0
+      case model.Win(player) =>
+        baseRow.copy(
+          playerThatWon = Some(model.playerToInt(player))
         )
-      }
     }
 
   }
 
-  def fromScoreTableRow(st: ScoreTableRow): Option[State] = {
-    if (st.isDeuce) { return Some(model.Deuce) }
+  sealed trait StateParseError
+  case class MultipleStatesPossibleFound(states: List[State]) extends StateParseError
+  case object NoStatesFound extends StateParseError
+  // case class InvalidScores(p1Score: Int, p2Score: Int) extends StateParseError
 
-    st.playerWithAdvantage.flatMap(model.intToPlayer) match {
-      case Some(playerId) => { return Some(model.Advantage(playerId)) }
-      case None => {
-        st.playerThatWon.flatMap(model.intToPlayer) match {
-          case Some(playerId) => { return Some(model.Win(playerId)) }
-          case None =>
-            (model.intToScore(st.p1Score), model.intToScore(st.p2Score)) match {
-              case (Some(p1Score), Some(p2Score)) => {
-                return Some(model.NormalScoring((p1Score, p2Score)))
-              }
-              case _ => return { None }
-            }
-        }
+  def fromScoreTableRow(st: ScoreTableRow): Either[StateParseError, State] = {
+    val optDeuce = if (st.isDeuce) Some(model.Deuce) else None
 
+    val optAdvantage: Option[model.Advantage] =
+      st.playerWithAdvantage
+        .flatMap(model.intToPlayer)
+        .map(model.Advantage)
+
+    val optWin: Option[model.Win] =
+      st.playerThatWon
+        .flatMap(model.intToPlayer)
+        .map(model.Win)
+
+    val optNormalScore: Option[model.NormalScoring] =
+      (model.intToScore(st.p1Score), model.intToScore(st.p2Score)) match {
+        case (Some(p1Score), Some(p2Score)) =>
+          Some(model.NormalScoring((p1Score, p2Score)))
+
+        case _ =>
+          // return Left(InvalidScores(st.p1Score, st.p2Score))
+          None
       }
-    }
+
+    val possibleStates: List[Option[State]] =
+      List(optDeuce, optAdvantage, optWin, optNormalScore)
+
+    val validStates: List[State] = possibleStates.flatten
+
+    if (validStates.length == 0) return Left(NoStatesFound)
+    if (validStates.length >  1) return Left(MultipleStatesPossibleFound(validStates))
+
+    return Right(validStates.head)
   }
 
   // case class ScoreTableRow2(
@@ -103,8 +112,7 @@ object ScoreRepository {
   def getScoreSql(
       id: Long
   ): doobie.Query0[ScoreRepository.ScoreTableRow] = {
-    sql"SELECT id, isDeuce, playerWithAdvantage, playerThatWon, p1Score, p2Score FROM score WHERE id = $id"
-      .query
+    sql"SELECT id, isDeuce, playerWithAdvantage, playerThatWon, p1Score, p2Score FROM score WHERE id = $id".query
   }
 
   def updateSql(id: Long, st: ScoreTableRow): doobie.Update0 = {
@@ -126,7 +134,8 @@ object ScoreRepository {
       .map {
         case None => Left(ScoreNotFoundError)
         case Some(score) => {
-          ScoreRepository.fromScoreTableRow(score) match {
+          // TODO handle either
+          ScoreRepository.fromScoreTableRow(score).toOption match {
             case Some(s) => Right(s)
             case None    => Left(ScoreNotFoundError)
           }
