@@ -28,11 +28,6 @@ class ScoreService(repository: ScoreRepository) extends Http4sDsl[IO] {
 
   case class CreateResponseJson(gameId: Long)
 
-  type ScoreResponseJson = ScoreRepository.ScoreTableRow
-
-  def toScoreResponseJson(id: Long, s: State): ScoreResponseJson =
-    ScoreRepository.toScoreTableRow(id, s)
-
   val routes = HttpRoutes.of[IO] {
     case GET -> Root / "scores" / LongVar(gameId) =>
       for {
@@ -44,20 +39,6 @@ class ScoreService(repository: ScoreRepository) extends Http4sDsl[IO] {
       } yield response
 
     case GET -> Root / "scoresString" / LongVar(gameId) =>
-      case class ScoreResponseStringJson(message: String)
-
-      def toScoreResponseStringJson(state: State): ScoreResponseStringJson = {
-        ScoreResponseStringJson(
-          state match {
-            case model.NormalScoring((p1Score, p2Score)) =>
-              s"P1: $p1Score, P2: $p2Score"
-            case model.Deuce             => "deuce"
-            case model.Advantage(player) => s"advantage ${player}"
-            case model.Win(player)       => s"${player} won"
-          }
-        )
-      }
-
       for {
         scoreResult <- repository.getScore(gameId)
         response <- scoreResult match {
@@ -67,7 +48,14 @@ class ScoreService(repository: ScoreRepository) extends Http4sDsl[IO] {
       } yield response
 
     case GET -> Root / "scoresXML" / LongVar(gameId) =>
-      handleXml(gameId)
+      for {
+        scoreResult <- repository.getScore(gameId)
+        response <- scoreResult match {
+          case Left(ScoreNotFoundError) => NotFound("Score not found")
+          case Right(state) =>
+            Ok(XmlEncoder[ScoreXml].encode(toScoreXml(gameId, state)))
+        }
+      } yield response
 
     case req @ POST -> Root / "startGame" =>
       for {
@@ -122,20 +110,43 @@ class ScoreService(repository: ScoreRepository) extends Http4sDsl[IO] {
         } yield updated
     }
   }
+  type ScoreResponseJson = ScoreRepository.ScoreTableRow
+
+  def toScoreResponseJson(id: Long, s: State): ScoreResponseJson =
+    ScoreRepository.toScoreTableRow(id, s)
+
+  case class ScoreResponseStringJson(message: String)
+
+  def toScoreResponseStringJson(state: State): ScoreResponseStringJson = {
+    ScoreResponseStringJson(
+      state match {
+        case model.NormalScoring((p1Score, p2Score)) =>
+          s"P1: $p1Score, P2: $p2Score"
+        case model.Deuce             => "deuce"
+        case model.Advantage(player) => s"advantage ${player}"
+        case model.Win(player)       => s"${player} won"
+      }
+    )
+  }
 
   case class ScoresNested(p1Score: Int, p2Score: Int)
-  implicit val scoresNestedElEnc: ElementEncoder[ScoresNested] = deriveElementEncoder
+  implicit val scoresNestedElEnc: ElementEncoder[ScoresNested] =
+    deriveElementEncoder
+
+  case class EmptyTagHack[A](opt: Option[A])
+  implicit def eee[A]: ElementEncoder[EmptyTagHack[A]] =
+    ElementEncoder.stringEncoder.contramap(e => emptyTagHack(e.opt))
+  def emptyTagHack[A](opt: Option[A]): String =
+    opt.map(_.toString()).getOrElse("")
 
   case class ScoreXml(
       @attr id: Long,
       isDeuce: Boolean,
-      playerWithAdvantage: String,
-      playerThatWon: String,
+      playerWithAdvantage: EmptyTagHack[Int],
+      playerThatWon: EmptyTagHack[Int],
       scores: ScoresNested
   )
   implicit val scoreXmlEnc: XmlEncoder[ScoreXml] = deriveXmlEncoder("AAAA")
-
-  def emptyTagIfNone[A](opt: Option[A]) : String = opt.map(_.toString()).getOrElse("")
 
   def toScoreXml(id: Long, state: State): ScoreXml = {
     val s = ScoreRepository.toScoreTableRow(id, state)
@@ -143,23 +154,10 @@ class ScoreService(repository: ScoreRepository) extends Http4sDsl[IO] {
     ScoreXml(
       id = s.id,
       isDeuce = s.isDeuce,
-      playerWithAdvantage = emptyTagIfNone(s.playerWithAdvantage),
-      playerThatWon = emptyTagIfNone(s.playerThatWon),
+      playerWithAdvantage = EmptyTagHack(s.playerWithAdvantage),
+      playerThatWon = EmptyTagHack(s.playerThatWon),
       scores = ScoresNested(s.p1Score, s.p2Score)
     )
-  }
-
-  def handleXml(gameId: Long) = {
-
-    for {
-      scoreResult <- repository.getScore(gameId)
-      response <- scoreResult match {
-        case Left(ScoreNotFoundError) => NotFound("Score not found")
-        case Right(state) =>
-          Ok(XmlEncoder[ScoreXml].encode(toScoreXml(gameId, state)))
-      }
-    } yield response
-
   }
 
 }
