@@ -3,7 +3,7 @@ package repository
 import cats.effect.IO
 import doobie.util.transactor.Transactor
 import fs2.Stream
-import model.{State, Score, ScoreNotFoundError}
+import model.{State, Score, ScoreNotFoundError, NormalScoring}
 import doobie._
 import doobie.implicits._
 
@@ -83,27 +83,24 @@ object ScoreRepository {
           None
       }
 
-    (optAdvantage, optWin, optDeuce, optNormalScore) match {
-
-      // optNormalScore will probably be always (Some) 
-      // in the next 3 branches
-
-      case (None, None, Some(deuce), _)       => Right(deuce)
-      case (Some(advantage), None, None, _)   => Right(advantage)
-      case (None, Some(win), None, _)         => Right(win)
-
-      case (None, None, None, Some(normalScore)) => Right(normalScore)
+    (optDeuce, optAdvantage, optWin) match {
+      case (Some(deuce), None, None)     => Right(deuce)
+      case (None, Some(advantage), None) => Right(advantage)
+      case (None, None, Some(win))       => Right(win)
       case (_) => {
+
         val possibleStates: List[Option[State]] =
-          List(optAdvantage, optWin, optDeuce, optNormalScore)
+          List(optDeuce, optAdvantage, optWin, optNormalScore)
 
         val validStates: List[State] = possibleStates.flatten
 
-        if (validStates.length == 0)
-          return Left(NoStatesFound)
-        else
-          return Left(MultipleStatesPossibleFound(validStates))
+        validStates match {
+          case (normalScore: NormalScoring) :: Nil => Right(normalScore)
+          case Nil => Left(NoStatesFound)
+          case (_) => Left(MultipleStatesPossibleFound(validStates))
+        }
       }
+
     }
   }
 
