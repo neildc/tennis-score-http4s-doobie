@@ -13,6 +13,7 @@ import org.http4s.headers.{Location, `Content-Type`}
 import org.http4s.{HttpRoutes, MediaType, Uri, Request}
 import repository.ScoreRepository
 import org.http4s.Status
+import model.db.ScoreTableRow
 
 import ru.tinkoff.phobos.decoding._
 import ru.tinkoff.phobos.encoding._
@@ -117,10 +118,10 @@ class ScoreService(repository: ScoreRepository) extends Http4sDsl[IO] {
     }
   }
 
-  type ScoreResponseJson = ScoreRepository.ScoreTableRow
+  type ScoreResponseJson = ScoreTableRow
 
   def toScoreResponseJson(id: Long, s: State): ScoreResponseJson =
-    ScoreRepository.toScoreTableRow(id, s)
+    ScoreTableRow.fromState(id, s)
 
   case class ScoreResponseStringJson(message: String)
 
@@ -156,7 +157,7 @@ class ScoreService(repository: ScoreRepository) extends Http4sDsl[IO] {
   implicit val scoreXmlEnc: XmlEncoder[ScoreXml] = deriveXmlEncoder("AAAA")
 
   def toScoreXml(id: Long, state: State): ScoreXml = {
-    val s = ScoreRepository.toScoreTableRow(id, state)
+    val s = ScoreTableRow.fromState(id, state)
 
     ScoreXml(
       id = s.id,
