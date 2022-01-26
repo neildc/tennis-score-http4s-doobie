@@ -18,22 +18,6 @@ object ScoreRepository {
   case object ScoreNotFoundError extends ScoreRepositoryError
 
 
-  // case class ScoreTableRow2(
-  //     id: Long,
-  //     isDeuce: Boolean,
-  //     playerWithAdvantage: Option[Int],
-  //     playerThatWon: Option[Int],
-  //     p1Score: Int,
-  //     p2Score: String
-  // )
-
-  // def getScoreSql2(
-  //     id: Long
-  // ) = {
-  //   sql"SELECT id, isDeuce, playerWithAdvantage, playerThatWon, p1Score, p2Score FROM score WHERE id = $id"
-  //     .query[ScoreRepository.ScoreTableRow2]
-  // }
-
   def getScoreSql(
       id: Long
   ): doobie.Query0[ScoreTableRow] = {

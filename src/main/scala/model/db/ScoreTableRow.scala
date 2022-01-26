@@ -79,6 +79,7 @@ object ScoreTableRow {
 
     val optWin: Option[ValidatedNel[StateParseError, model.Win]] =
       st.playerThatWon.map(playerInt => {
+
         model.intToPlayer(playerInt) match {
           case None         => invalidNel(InvalidWinPlayer(playerInt))
           case Some(player) => Valid(model.Win(player))
