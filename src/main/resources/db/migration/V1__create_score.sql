@@ -8,7 +8,18 @@ CREATE TABLE Score (
   p2Score INT NOT NULL DEFAULT 0
 );
 
--- INSERT INTO Score DEFAULT VALUES;
+INSERT INTO Score DEFAULT VALUES;
+
+UPDATE Score SET p1Score = 10 WHERE id = 1;
+
+INSERT INTO Score DEFAULT VALUES;
+UPDATE Score SET p1Score = 10, p2Score = 20 WHERE id = 2;
+
+INSERT INTO Score DEFAULT VALUES;
+UPDATE Score SET p1Score = 2, playerThatWon = 3 WHERE id = 3;
+
+INSERT INTO Score DEFAULT VALUES;
+UPDATE Score SET playerThatWon=2, isDeuce = true WHERE id = 4;
 
 -- CREATE TABLE Score (
 --   id SERIAL PRIMARY KEY,

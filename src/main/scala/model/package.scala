@@ -1,7 +1,5 @@
 package object model {
 
-  case object ScoreNotFoundError
-
   sealed trait Score
   final case object ScoreLove extends Score
   final case object Score15 extends Score

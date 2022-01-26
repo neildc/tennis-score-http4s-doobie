@@ -6,7 +6,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
-import model.{Player, Score, State, ScoreNotFoundError}
+import model.{Player, Score, State}
 import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.{Location, `Content-Type`}
@@ -33,7 +33,7 @@ class ScoreService(repository: ScoreRepository) extends Http4sDsl[IO] {
       for {
         scoreResult <- repository.getScore(gameId)
         response <- scoreResult match {
-          case Left(ScoreNotFoundError) => NotFound("Score not found")
+          case Left(scoreRepoErr) => fromScoreRepositoryError(scoreRepoErr)
           case Right(state) => Ok(toScoreResponseJson(gameId, state).asJson)
         }
       } yield response
@@ -42,7 +42,7 @@ class ScoreService(repository: ScoreRepository) extends Http4sDsl[IO] {
       for {
         scoreResult <- repository.getScore(gameId)
         response <- scoreResult match {
-          case Left(ScoreNotFoundError) => NotFound("Score not found")
+          case Left(scoreRepoErr) => fromScoreRepositoryError(scoreRepoErr)
           case Right(state) => Ok(toScoreResponseStringJson(state).asJson)
         }
       } yield response
@@ -51,7 +51,7 @@ class ScoreService(repository: ScoreRepository) extends Http4sDsl[IO] {
       for {
         scoreResult <- repository.getScore(gameId)
         response <- scoreResult match {
-          case Left(ScoreNotFoundError) => NotFound("Score not found")
+          case Left(scoreRepoErr) => fromScoreRepositoryError(scoreRepoErr)
           case Right(state) =>
             Ok(XmlEncoder[ScoreXml].encode(toScoreXml(gameId, state)))
         }
@@ -91,14 +91,14 @@ class ScoreService(repository: ScoreRepository) extends Http4sDsl[IO] {
           stateResult <- repository.getScore(sr.gameId)
           _ <- IO(println(stateResult))
           updated <- stateResult match {
-            case Left(ScoreNotFoundError) => BadRequest("Not found game")
+            case Left(scoreRepoErr) => fromScoreRepositoryError(scoreRepoErr)
             case Right(state) =>
               repository
                 .updateScore(sr.gameId, model.score(player)(state))
                 .flatMap(k =>
                   k match {
-                    case None => InternalServerError("Failed to update")
-                    case Some(newState) => {
+                    case Left(scoreRepoErr) => fromScoreRepositoryError(scoreRepoErr)
+                    case Right(newState) => {
                       println(newState)
                       Ok(toScoreResponseJson(sr.gameId, newState).asJson)
                     }
@@ -110,6 +110,13 @@ class ScoreService(repository: ScoreRepository) extends Http4sDsl[IO] {
         } yield updated
     }
   }
+  def fromScoreRepositoryError(err: ScoreRepository.ScoreRepositoryError) =  {
+    err match {
+      case ScoreRepository.ScoreNotFoundError => BadRequest("Game Not found")
+      case ScoreRepository.StateParseErorrs(errs) => InternalServerError(s"state errors: ${errs}")
+    }
+  }
+
   type ScoreResponseJson = ScoreRepository.ScoreTableRow
 
   def toScoreResponseJson(id: Long, s: State): ScoreResponseJson =
