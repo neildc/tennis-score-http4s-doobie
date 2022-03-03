@@ -3,12 +3,11 @@ package repository
 import cats.effect.IO
 import doobie.util.transactor.Transactor
 import fs2.Stream
-import model.{State, Player, Score, NormalScoring}
+import model.{Score, State}
 import cats.data.Validated._
 import doobie._
 import doobie.implicits._
 import cats.data.NonEmptyList
-import model.Deuce
 import model.db.ScoreTableRow
 
 object ScoreRepository {
@@ -38,7 +37,7 @@ object ScoreRepository {
 
   private def getScore_(
       id: Long
-  ): ConnectionIO[Either[ScoreRepositoryError, State]] = {
+  ): ConnectionIO[Either[ScoreRepositoryError, model.State]] = {
     getScoreSql(id).option
       .map {
         case None => Left(ScoreNotFoundError)
@@ -55,7 +54,7 @@ object ScoreRepository {
 class ScoreRepository(transactor: Transactor[IO]) {
   def getScore(
       id: Long
-  ): IO[Either[ScoreRepository.ScoreRepositoryError, State]] = {
+  ): IO[Either[ScoreRepository.ScoreRepositoryError, model.State]] = {
     ScoreRepository.getScore_(id).transact(transactor)
   }
 
@@ -68,7 +67,7 @@ class ScoreRepository(transactor: Transactor[IO]) {
   def updateScore(
       id: Long,
       newState: State
-  ): IO[Either[ScoreRepository.ScoreRepositoryError, State]] = {
+  ): IO[Either[ScoreRepository.ScoreRepositoryError, model.State]] = {
     val scoreTableRow = ScoreTableRow.fromState(id, newState)
 
     ScoreRepository

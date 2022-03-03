@@ -7,7 +7,7 @@ import org.http4s.dsl.io._
 import org.http4s.implicits._
 import org.http4s.server.blaze._
 import repository.ScoreRepository
-import service.ScoreService
+import controller.ScoreController
 import scala.concurrent.ExecutionContext.global
 
 object HttpServer {
@@ -30,7 +30,7 @@ object HttpServer {
       repository = new ScoreRepository(resources.transactor)
       exitCode <- BlazeServerBuilder[IO](global)
         .bindHttp(resources.config.server.port, resources.config.server.host)
-        .withHttpApp(new ScoreService(repository).routes.orNotFound).serve.compile.lastOrError
+        .withHttpApp(new ScoreController(repository).routes.orNotFound).serve.compile.lastOrError
     } yield exitCode
   }
 
