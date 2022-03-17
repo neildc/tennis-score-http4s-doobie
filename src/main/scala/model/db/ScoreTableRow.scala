@@ -5,22 +5,39 @@ import cats.data.Validated._
 import cats.data.{Validated, ValidatedNel}
 import cats.data.NonEmptyList
 import cats.implicits._
+import shapeless._
+import shapeless.ops.record._
 
-case class ScoreTableRow(
-        id: Long,
-        isDeuce: Boolean,
-        playerWithAdvantage: Option[Int],
-        playerThatWon: Option[Int],
-        p1Score: Int,
-        p2Score: Int
-    )
+case class ScoreTableRow(id: Long, data: ScoreTableRowWithoutId)
 
-object ScoreTableRow {
+case class ScoreTableRowWithoutId(
+    isDeuce: Boolean,
+    playerWithAdvantage: Option[Int],
+    playerThatWon: Option[Int],
+    p1Score: Int,
+    p2Score: Int
+)
 
-  def fromState(id: Long, state: State): ScoreTableRow = {
+sealed trait StateParseError
+case class MultiplePossibleStatesFound(states: List[model.State])
+    extends StateParseError
+case object NoStatesFound extends StateParseError
+// case class InvalidScores(p1Score: Int, p2Score: Int) extends StateParseError
+case class InvalidAdvantagePlayer(player: Int) extends StateParseError
+case class InvalidWinPlayer(player: Int) extends StateParseError
+case class InvalidPlayer1Score(p1Raw: Int) extends StateParseError
+case class InvalidPlayer2Score(p2Raw: Int) extends StateParseError
+
+object ScoreTableRowWithoutId {
+  def columns: List[String] = {
+    // https://svejcar.dev/posts/2019/10/22/extracting-case-class-field-names-with-shapeless/
+    val gen = LabelledGeneric[ScoreTableRowWithoutId]
+    Keys[gen.Repr].apply().toList.map(_.name)
+  }
+
+  def fromState(state: State): ScoreTableRowWithoutId = {
     val baseRow =
-      ScoreTableRow(
-        id = id,
+      ScoreTableRowWithoutId(
         isDeuce = false,
         playerWithAdvantage = None,
         playerThatWon = None,
@@ -51,21 +68,10 @@ object ScoreTableRow {
           playerThatWon = Some(Player.playerToInt(player))
         )
     }
-
   }
 
-  sealed trait StateParseError
-  case class MultiplePossibleStatesFound(states: List[model.State])
-      extends StateParseError
-  case object NoStatesFound extends StateParseError
-  // case class InvalidScores(p1Score: Int, p2Score: Int) extends StateParseError
-  case class InvalidAdvantagePlayer(player: Int) extends StateParseError
-  case class InvalidWinPlayer(player: Int) extends StateParseError
-  case class InvalidPlayer1Score(p1Raw: Int) extends StateParseError
-  case class InvalidPlayer2Score(p2Raw: Int) extends StateParseError
-
   def toState(
-      st: ScoreTableRow
+      st: ScoreTableRowWithoutId
   ): ValidatedNel[StateParseError, model.State] = {
     val optDeuce = if (st.isDeuce) Some(model.Deuce) else None
 
@@ -115,12 +121,15 @@ object ScoreTableRow {
         val b: List[ValidatedNel[StateParseError, State]] = a.flatten
 
         val possibleStates: ValidatedNel[StateParseError, List[State]] = b.sequence
-        */
+         */
 
         val possibleStates: ValidatedNel[StateParseError, List[model.State]] =
-          List(optDeuce.map(_.valid), optAdvantage, optWin, Some(optNormalScore))
-          .flatten
-          .sequence
+          List(
+            optDeuce.map(_.valid),
+            optAdvantage,
+            optWin,
+            Some(optNormalScore)
+          ).flatten.sequence
 
         possibleStates match {
           case Invalid(errs) => Invalid(errs)

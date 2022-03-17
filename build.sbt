@@ -60,6 +60,8 @@ lazy val root = (project in file("."))
 
       "ru.tinkoff" %% "phobos-core" % "0.13.1",
 
+      "com.chuusai" %% "shapeless" % "2.3.3",
+
     )
   )
 

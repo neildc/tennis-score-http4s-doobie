@@ -4,7 +4,7 @@ import doobie.specs2.IOChecker
 import org.specs2.mutable.Specification
 
 import ScoreRepository._
-import model.db.ScoreTableRow
+import model.db.ScoreTableRowWithoutId
 
 class AnalysisTestSpec
     extends Specification
@@ -14,8 +14,7 @@ class AnalysisTestSpec
   implicit val instance = "score"
 
   val aa =
-    ScoreTableRow(
-      id = 1,
+    ScoreTableRowWithoutId(
       isDeuce = false,
       playerWithAdvantage = None,
       playerThatWon = None,
