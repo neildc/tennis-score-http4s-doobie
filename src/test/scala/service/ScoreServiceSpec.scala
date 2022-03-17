@@ -2,7 +2,7 @@ package service
 
 import org.specs2.mutable._
 import scala.util.chaining._
-import model.Score._
+import model._
 
 
 class ScoreSpec extends Specification {

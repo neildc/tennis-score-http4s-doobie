@@ -45,7 +45,7 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
         scoreResult <- repository.getScore(gameId)
         response <- scoreResult match {
           case Left(scoreRepoErr) => fromScoreRepositoryError(scoreRepoErr)
-          case Right(state) => Ok(toScoreResponseStringJson(state).asJson)
+          case Right(state)       => Ok(toScoreResponseStringJson(state).asJson)
         }
       } yield response
 
@@ -99,23 +99,24 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
                 .updateScore(sr.gameId, ScoreService.score(player)(state))
                 .flatMap(k =>
                   k match {
-                    case Left(scoreRepoErr) => fromScoreRepositoryError(scoreRepoErr)
+                    case Left(scoreRepoErr) =>
+                      fromScoreRepositoryError(scoreRepoErr)
                     case Right(newState) => {
                       println(newState)
                       Ok(toScoreResponseJson(sr.gameId, newState).asJson)
                     }
                   }
                 )
-
           }
 
         } yield updated
     }
   }
-  def fromScoreRepositoryError(err: ScoreRepository.ScoreRepositoryError) =  {
+  def fromScoreRepositoryError(err: ScoreRepository.ScoreRepositoryError) = {
     err match {
       case ScoreRepository.ScoreNotFoundError => BadRequest("Game Not found")
-      case ScoreRepository.StateParseErorrs(errs) => InternalServerError(s"state errors: ${errs}")
+      case ScoreRepository.StateParseErorrs(errs) =>
+        InternalServerError(s"state errors: ${errs}")
     }
   }
 
@@ -143,8 +144,10 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
     deriveElementEncoder
 
   case class EmptyTagHack[A](opt: Option[A])
+
   implicit def eee[A]: ElementEncoder[EmptyTagHack[A]] =
     ElementEncoder.stringEncoder.contramap(e => emptyTagHack(e.opt))
+
   def emptyTagHack[A](opt: Option[A]): String =
     opt.map(_.toString()).getOrElse("")
 
