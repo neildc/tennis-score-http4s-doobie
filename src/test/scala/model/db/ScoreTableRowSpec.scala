@@ -11,40 +11,60 @@ class HelloWorldSpec extends Specification {
   "ScoreTableRow" should {
     "Deuce round trip conversions" in {
       val input = model.Deuce
-      ScoreTableRowWithoutId.toState(ScoreTableRowWithoutId.fromState(input)) must equalTo(
+      ScoreTableRowWithoutId.toState(
+        ScoreTableRowWithoutId.fromState(input)
+      ) must equalTo(
         Valid(input)
       )
     }
     "Advantage round trip conversions P1" in {
       val input = model.Advantage(model.P1)
-      ScoreTableRowWithoutId.toState(ScoreTableRowWithoutId.fromState(input)) must equalTo(
+      ScoreTableRowWithoutId.toState(
+        ScoreTableRowWithoutId.fromState(input)
+      ) must equalTo(
         Valid(input)
       )
     }
     "Advantage round trip conversions P2" in {
       val input = model.Advantage(model.P2)
-      ScoreTableRowWithoutId.toState(ScoreTableRowWithoutId.fromState(input)) must equalTo(
+      ScoreTableRowWithoutId.toState(
+        ScoreTableRowWithoutId.fromState(input)
+      ) must equalTo(
         Valid(input)
       )
     }
     "Win round trip conversions P1" in {
       val input = model.Win(model.P1)
-      ScoreTableRowWithoutId.toState(ScoreTableRowWithoutId.fromState(input)) must equalTo(
+      ScoreTableRowWithoutId.toState(
+        ScoreTableRowWithoutId.fromState(input)
+      ) must equalTo(
         Valid(input)
       )
     }
     "Win round trip conversions P2" in {
       val input = model.Win(model.P2)
-      ScoreTableRowWithoutId.toState(ScoreTableRowWithoutId.fromState(input)) must equalTo(
+      ScoreTableRowWithoutId.toState(
+        ScoreTableRowWithoutId.fromState(input)
+      ) must equalTo(
         Valid(input)
       )
     }
     "Score round trip conversions" in {
-      val input = model.NormalScoring(model.Score15, model.Score30)
-      ScoreTableRowWithoutId.toState(ScoreTableRowWithoutId.fromState(input)) must equalTo(
+      val input = model.NormalScoring((model.ScoreLove, model.Score15))
+      ScoreTableRowWithoutId.toState(
+        ScoreTableRowWithoutId.fromState(input)
+      ) must equalTo(
         Valid(input)
       )
+
+      val input2 = model.NormalScoring((model.Score30, model.Score40))
+      ScoreTableRowWithoutId.toState(
+        ScoreTableRowWithoutId.fromState(input2)
+      ) must equalTo(
+        Valid(input2)
+      )
     }
+
     "Reports when multiple valid states are found (3)" in {
       val input = ScoreTableRowWithoutId(
         isDeuce = true,
