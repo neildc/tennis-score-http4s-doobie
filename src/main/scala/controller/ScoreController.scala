@@ -23,13 +23,6 @@ import ru.tinkoff.phobos.derivation.semiauto._
 
 class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
 
-  // implicit val decoder = jsonOf[IO, ScoreRequest]
-  implicit val decoder = accumulatingJsonOf[IO, ScoreRequest]
-  // implicit val fooDecoder: Decoder[ScoreRequest] = deriveDecoder
-  case class ScoreRequest(gameId: Long, player: Int)
-
-  case class CreateResponseJson(gameId: Long)
-
   val routes = HttpRoutes.of[IO] {
     case GET -> Root / "scores" / LongVar(gameId) =>
       for {
@@ -81,10 +74,72 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
             BadRequest(s"Invalid body, expected something like:\n $sampleJson")
           }
         }
-
       } yield (resp)
 
+    case req @ POST -> Root / "loadGame" =>
+      for {
+        scoreRequestJson <- req.attemptAs[ScoreTableRowWithoutId].value
+
+        resp <- scoreRequestJson match {
+          case Right(scoreRequest) =>
+            ScoreTableRowWithoutId.toState(scoreRequest).toEither match {
+              case Left(parseError) => BadRequest(parseError.toString)
+              case Right(state) =>
+                repository
+                  .insertScore(state)
+                  .flatMap(k =>
+                    k match {
+                      case Left(scoreRepoErr) =>
+                        fromScoreRepositoryError(scoreRepoErr)
+                      case Right((id, newState)) => {
+                        println(newState)
+                        Ok(toScoreResponseJson(id, newState).asJson)
+                      }
+                    }
+                  )
+            }
+          case Left(err) => {
+            val sampleJson = ScoreTableRowWithoutId.fromState(ScoreService.startGame()).asJson
+            BadRequest(s"Invalid body, expected something like:\n $sampleJson")
+          }
+        }
+      } yield (resp)
+
+    case req @ POST -> Root / "loadGameOneOf" =>
+      for {
+        oneOfStateJson <- req.attemptAs[State].value
+
+        resp <- oneOfStateJson match {
+          case Right(state) =>
+                repository
+                  .insertScore(state)
+                  .flatMap(k =>
+                    k match {
+                      case Left(scoreRepoErr) =>
+                        fromScoreRepositoryError(scoreRepoErr)
+                      case Right((id, newState)) => {
+                        println(newState)
+                        Ok(toScoreResponseJson(id, newState).asJson)
+                      }
+                    }
+                  )
+          case Left(err) => {
+            //val sampleJson = ScoreTableRowWithoutId.fromState(ScoreService.startGame()).asJson
+            //BadRequest(s"Invalid body, expected something like:\n $sampleJson")
+            BadRequest(err.toString)
+          }
+        }
+      } yield (resp)
   }
+
+  implicit val d2 = accumulatingJsonOf[IO, ScoreTableRowWithoutId]
+  implicit val d3 = accumulatingJsonOf[IO, State]
+
+  case class CreateResponseJson(gameId: Long)
+
+  implicit val decoder = accumulatingJsonOf[IO, ScoreRequest]
+  case class ScoreRequest(gameId: Long, player: Int)
+
   def updateScore(sr: ScoreRequest) = {
     Player.intToPlayer(sr.player) match {
       case None => BadRequest("Player invalid")

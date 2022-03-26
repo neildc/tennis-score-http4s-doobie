@@ -24,5 +24,6 @@ class AnalysisTestSpec
 
   check(ScoreRepository.getScoreSql(1))
   check(ScoreRepository.updateSql(1, aa))
+  check(ScoreRepository.insertSql(aa))
 
 }

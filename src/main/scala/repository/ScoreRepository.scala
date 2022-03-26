@@ -1,5 +1,6 @@
 package repository
 
+import cats.data.EitherT
 import cats.effect.IO
 import doobie.util.transactor.Transactor
 import fs2.Stream
@@ -37,6 +38,13 @@ object ScoreRepository {
     """
     Update[ScoreTableRowWithoutId](sql).toUpdate0(st)
   }
+  def insertSql(st: ScoreTableRowWithoutId): doobie.Update0 = {
+      val cols = ScoreTableRowWithoutId.columns.mkString(",")
+      val questionMarks = ScoreTableRowWithoutId.columns.map(_ => "?").mkString(",")
+
+      val sql = s"INSERT INTO score($cols) VALUES ($questionMarks)"
+      Update[ScoreTableRowWithoutId](sql).toUpdate0(st)
+    }
 
   private def getScore_(
       id: Long
@@ -66,6 +74,16 @@ class ScoreRepository(transactor: Transactor[IO]) {
       .withUniqueGeneratedKeys[Long]("id")
       .transact(transactor)
   }
+
+  def insertScore(state: State): IO[Either[ScoreRepository.ScoreRepositoryError, (Long, model.State)]] = {
+      val row = ScoreTableRowWithoutId.fromState(state)
+
+    ScoreRepository.insertSql(row)
+      .withUniqueGeneratedKeys[Long]("id")
+      .flatMap(gameId => EitherT(ScoreRepository.getScore_(gameId))
+                 .map(s => (gameId, s)).value)
+      .transact(transactor)
+    }
 
   def updateScore(
       id: Long,
