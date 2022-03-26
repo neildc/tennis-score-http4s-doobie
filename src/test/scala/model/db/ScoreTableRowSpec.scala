@@ -78,9 +78,9 @@ class HelloWorldSpec extends Specification {
         invalidNel(
           MultiplePossibleStatesFound(
             List(
+              model.NormalScoring((model.Score30, model.Score30)),
               model.Deuce,
               model.Advantage(model.P2),
-              model.NormalScoring((model.Score30, model.Score30))
             )
           )
         )
@@ -100,10 +100,10 @@ class HelloWorldSpec extends Specification {
           NonEmptyList.of(
             MultiplePossibleStatesFound(
               List(
+                model.NormalScoring((model.Score30, model.Score30)),
                 model.Deuce,
                 model.Advantage(model.P1),
                 model.Win(model.P2),
-                model.NormalScoring((model.Score30, model.Score30))
               )
             )
           )
@@ -122,10 +122,10 @@ class HelloWorldSpec extends Specification {
       ScoreTableRowWithoutId.toState(input) must equalTo(
         Invalid(
           NonEmptyList.of(
+            InvalidPlayer1Score(11),
+            InvalidPlayer2Score(22),
             InvalidAdvantagePlayer(9),
             InvalidWinPlayer(4),
-            InvalidPlayer1Score(11),
-            InvalidPlayer2Score(22)
           )
         )
       )

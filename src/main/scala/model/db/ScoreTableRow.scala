@@ -75,7 +75,7 @@ object ScoreTableRowWithoutId {
   ): ValidatedNel[StateParseError, model.State] = {
     val optDeuce = if (st.isDeuce) Some(model.Deuce) else None
 
-    val optAdvantage: Option[ValidatedNel[StateParseError, model.Advantage]] =
+    val optAdvantage: Option[ValidatedNel[StateParseError, model.State]] =
       st.playerWithAdvantage.map(playerInt =>
         Player.intToPlayer(playerInt) match {
           case None         => invalidNel(InvalidAdvantagePlayer(playerInt))
@@ -83,7 +83,7 @@ object ScoreTableRowWithoutId {
         }
       )
 
-    val optWin: Option[ValidatedNel[StateParseError, model.Win]] =
+    val optWin: Option[ValidatedNel[StateParseError, model.State]] =
       st.playerThatWon.map(playerInt => {
 
         Player.intToPlayer(playerInt) match {
@@ -92,7 +92,7 @@ object ScoreTableRowWithoutId {
         }
       })
 
-    val optNormalScore: ValidatedNel[StateParseError, model.NormalScoring] =
+    val normalScore: ValidatedNel[StateParseError, model.State] =
       (Score.intToScore(st.p1Score), Score.intToScore(st.p2Score)) match {
         case (Some(p1Score), Some(p2Score)) =>
           Valid(model.NormalScoring((p1Score, p2Score)))
@@ -109,49 +109,41 @@ object ScoreTableRowWithoutId {
         case (_, None) => invalidNel(InvalidPlayer2Score(st.p2Score))
       }
 
-    (optDeuce, optAdvantage, optWin, optNormalScore) match {
-      case (Some(deuce), None, None, Valid(_))     => Valid(deuce)
-      case (None, Some(Valid(advantage)), None, _) => Valid(advantage)
-      case (None, None, Some(Valid(win)), _)       => Valid(win)
-      case (_) => {
-        /*
-        val a: List[Option[ValidatedNel[StateParseError, List[State]]]] =
-            List(optDeuce.map(_.valid), optAdvantage, optWin, Some(optNormalScore))
+    val possiblyOptionalStates
+        : List[Option[ValidatedNel[StateParseError, model.State]]] =
+      List(optDeuce.map(_.valid), optAdvantage, optWin)
 
-        val b: List[ValidatedNel[StateParseError, State]] = a.flatten
+    val states: List[ValidatedNel[StateParseError, model.State]] =
+      normalScore :: possiblyOptionalStates.flatten
 
-        val possibleStates: ValidatedNel[StateParseError, List[State]] = b.sequence
-         */
+    val validatedNelStates: ValidatedNel[StateParseError, List[model.State]] =
+      states.sequence
 
-        val possibleStates: ValidatedNel[StateParseError, List[model.State]] =
-          List(
-            optDeuce.map(_.valid),
-            optAdvantage,
-            optWin,
-            Some(optNormalScore)
-          ).flatten.sequence
-
-        possibleStates match {
-          case Invalid(errs) => Invalid(errs)
-          case Valid(states) => {
-            optNormalScore match {
-              case Invalid(_) =>
-                if (states.length > 1) {
-                  invalidNel(MultiplePossibleStatesFound(states))
-                } else {
-                  invalidNel(NoStatesFound)
-                }
-              case Valid(score) => {
-                if (states.length > 2) {
-                  invalidNel(MultiplePossibleStatesFound(states))
-                } else {
-                  Valid(score)
-                }
-              }
+    def ensureOnlyASingleStateExists(
+        states: List[model.State]
+    ): ValidatedNel[StateParseError, model.State] = {
+      states.toNel match {
+        case None                       => invalidNel(NoStatesFound)
+        case Some(NonEmptyList(a, Nil)) => valid(a)
+        case Some(_) => {
+          if (states.length == 2)
+            // We may have a normal score state alongside one of these 3
+            // As long we only have one of any of those 3 than this is fine.
+            (optDeuce, optAdvantage, optWin) match {
+              case (Some(deuce), None, None)            => Valid(deuce)
+              case (None, Some(Valid(advantage)), None) => Valid(advantage)
+              case (None, None, Some(Valid(win)))       => Valid(win)
+              case _ => invalidNel(MultiplePossibleStatesFound(states))
             }
-          }
+          else
+            invalidNel(MultiplePossibleStatesFound(states))
         }
       }
+    }
+
+    validatedNelStates match {
+      case Invalid(errs) => Invalid(errs)
+      case Valid(states) => { ensureOnlyASingleStateExists(states) }
     }
   }
 }
