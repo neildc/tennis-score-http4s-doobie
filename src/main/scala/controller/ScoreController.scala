@@ -83,23 +83,12 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
         resp <- scoreRequestJson match {
           case Right(scoreRequest) =>
             ScoreTableRowWithoutId.toState(scoreRequest).toEither match {
+              case Right(state)     => insertScore(state)
               case Left(parseError) => BadRequest(parseError.toString)
-              case Right(state) =>
-                repository
-                  .insertScore(state)
-                  .flatMap(k =>
-                    k match {
-                      case Left(scoreRepoErr) =>
-                        fromScoreRepositoryError(scoreRepoErr)
-                      case Right((id, newState)) => {
-                        println(newState)
-                        Ok(toScoreResponseJson(id, newState).asJson)
-                      }
-                    }
-                  )
             }
           case Left(err) => {
-            val sampleJson = ScoreTableRowWithoutId.fromState(ScoreService.startGame()).asJson
+            val sampleJson =
+              ScoreTableRowWithoutId.fromState(ScoreService.startGame()).asJson
             BadRequest(s"Invalid body, expected something like:\n $sampleJson")
           }
         }
@@ -110,19 +99,7 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
         oneOfStateJson <- req.attemptAs[State].value
 
         resp <- oneOfStateJson match {
-          case Right(state) =>
-                repository
-                  .insertScore(state)
-                  .flatMap(k =>
-                    k match {
-                      case Left(scoreRepoErr) =>
-                        fromScoreRepositoryError(scoreRepoErr)
-                      case Right((id, newState)) => {
-                        println(newState)
-                        Ok(toScoreResponseJson(id, newState).asJson)
-                      }
-                    }
-                  )
+          case Right(state) => insertScore(state)
           case Left(err) => {
             //val sampleJson = ScoreTableRowWithoutId.fromState(ScoreService.startGame()).asJson
             //BadRequest(s"Invalid body, expected something like:\n $sampleJson")
@@ -152,8 +129,8 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
             case Right(state) =>
               repository
                 .updateScore(sr.gameId, ScoreService.score(player)(state))
-                .flatMap(k =>
-                  k match {
+                .flatMap(dbResult =>
+                  dbResult match {
                     case Left(scoreRepoErr) =>
                       fromScoreRepositoryError(scoreRepoErr)
                     case Right(newState) => {
@@ -167,6 +144,21 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
         } yield updated
     }
   }
+
+  def insertScore(state: State) =
+    repository
+      .insertScore(state)
+      .flatMap(dbResult =>
+        dbResult match {
+          case Left(scoreRepoErr) =>
+            fromScoreRepositoryError(scoreRepoErr)
+          case Right((id, newState)) => {
+            println(newState)
+            Ok(toScoreResponseJson(id, newState).asJson)
+          }
+        }
+      )
+
   def fromScoreRepositoryError(err: ScoreRepository.ScoreRepositoryError) = {
     err match {
       case ScoreRepository.ScoreNotFoundError => BadRequest("Game Not found")

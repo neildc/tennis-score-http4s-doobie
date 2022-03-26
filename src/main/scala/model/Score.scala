@@ -42,7 +42,7 @@ object State {
   )
 
   implicit val decodeState: Decoder[State] = {
-    def decodeOneOf(decoders: List[Decoder[State]]) = decoders.reduceLeft(_ or _)
+    def decodeOneOf[A](decoders: List[Decoder[A]]) = decoders.reduceLeft(_ or _)
 
     decodeOneOf(
       List[Decoder[State]](
