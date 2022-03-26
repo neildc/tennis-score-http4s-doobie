@@ -20,10 +20,13 @@ import ru.tinkoff.phobos.decoding._
 import ru.tinkoff.phobos.encoding._
 import ru.tinkoff.phobos.syntax._
 import ru.tinkoff.phobos.derivation.semiauto._
+import org.http4s.Response
 
 class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
 
   val routes = HttpRoutes.of[IO] {
+    case GET -> Root / "hello" => Ok("hello")
+
     case GET -> Root / "scores" / LongVar(gameId) =>
       for {
         scoreResult <- repository.getScore(gameId)
@@ -61,7 +64,10 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
     case req @ POST -> Root / "scored" / LongVar(gameId) / "player" / IntVar(
           playerInt
         ) =>
-      updateScore(ScoreRequest(gameId, playerInt))
+    Player.intToPlayer(playerInt) match {
+      case Some(p) => updateScore(ScoreRequest(gameId, p))
+      case None => BadRequest("Invalid player")
+    }
 
     case req @ POST -> Root / "scored" =>
       for {
@@ -70,8 +76,9 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
         resp <- scoreRequestJson match {
           case Right(scoreRequest) => updateScore(scoreRequest)
           case Left(err) => {
-            val sampleJson = ScoreRequest(1, 2).asJson
-            BadRequest(s"Invalid body, expected something like:\n $sampleJson")
+            //val sampleJson = ScoreRequest(1, ).asJson
+            //BadRequest(s"Invalid body, expected something like:\n $sampleJson")
+            BadRequest(err.toString)
           }
         }
       } yield (resp)
@@ -115,12 +122,9 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
   case class CreateResponseJson(gameId: Long)
 
   implicit val decoder = accumulatingJsonOf[IO, ScoreRequest]
-  case class ScoreRequest(gameId: Long, player: Int)
+  case class ScoreRequest(gameId: Long, player: Player)
 
-  def updateScore(sr: ScoreRequest) = {
-    Player.intToPlayer(sr.player) match {
-      case None => BadRequest("Player invalid")
-      case Some(player) =>
+  def updateScore(sr: ScoreRequest): IO[Response[IO]] = {
         for {
           stateResult <- repository.getScore(sr.gameId)
           _ <- IO(println(stateResult))
@@ -128,7 +132,7 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
             case Left(scoreRepoErr) => fromScoreRepositoryError(scoreRepoErr)
             case Right(state) =>
               repository
-                .updateScore(sr.gameId, ScoreService.score(player)(state))
+                .updateScore(sr.gameId, ScoreService.score(sr.player)(state))
                 .flatMap(dbResult =>
                   dbResult match {
                     case Left(scoreRepoErr) =>
@@ -143,9 +147,8 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
 
         } yield updated
     }
-  }
 
-  def insertScore(state: State) =
+  def insertScore(state: State): IO[Response[IO]] = {
     repository
       .insertScore(state)
       .flatMap(dbResult =>
@@ -158,12 +161,15 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
           }
         }
       )
+  }
 
   def fromScoreRepositoryError(err: ScoreRepository.ScoreRepositoryError) = {
     err match {
       case ScoreRepository.ScoreNotFoundError => BadRequest("Game Not found")
       case ScoreRepository.StateParseErorrs(errs) =>
         InternalServerError(s"state errors: ${errs}")
+      case ScoreRepository.UpdateFailed(_) => InternalServerError("Update failed")
+      case ScoreRepository.InsertFailed(_) => InternalServerError("Insert failed")
     }
   }
 

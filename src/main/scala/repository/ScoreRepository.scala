@@ -8,6 +8,7 @@ import model.{Score, State}
 import cats.data.Validated._
 import doobie._
 import doobie.implicits._
+import cats.implicits._
 import cats.data.NonEmptyList
 import model.db.{ScoreTableRow, ScoreTableRowWithoutId, StateParseError}
 
@@ -16,7 +17,8 @@ object ScoreRepository {
   case class StateParseErorrs(errs: NonEmptyList[StateParseError])
       extends ScoreRepositoryError
   case object ScoreNotFoundError extends ScoreRepositoryError
-
+  case class UpdateFailed(err: Throwable) extends ScoreRepositoryError
+  case class InsertFailed(err: Throwable) extends ScoreRepositoryError
 
   def getScoreSql(
       id: Long
@@ -39,12 +41,13 @@ object ScoreRepository {
     Update[ScoreTableRowWithoutId](sql).toUpdate0(st)
   }
   def insertSql(st: ScoreTableRowWithoutId): doobie.Update0 = {
-      val cols = ScoreTableRowWithoutId.columns.mkString(",")
-      val questionMarks = ScoreTableRowWithoutId.columns.map(_ => "?").mkString(",")
+    val cols = ScoreTableRowWithoutId.columns.mkString(",")
+    val questionMarks =
+      ScoreTableRowWithoutId.columns.map(_ => "?").mkString(",")
 
-      val sql = s"INSERT INTO score($cols) VALUES ($questionMarks)"
-      Update[ScoreTableRowWithoutId](sql).toUpdate0(st)
-    }
+    val sql = s"INSERT INTO score($cols) VALUES ($questionMarks)"
+    Update[ScoreTableRowWithoutId](sql).toUpdate0(st)
+  }
 
   private def getScore_(
       id: Long
@@ -75,27 +78,33 @@ class ScoreRepository(transactor: Transactor[IO]) {
       .transact(transactor)
   }
 
-  def insertScore(state: State): IO[Either[ScoreRepository.ScoreRepositoryError, (Long, model.State)]] = {
-      val row = ScoreTableRowWithoutId.fromState(state)
+  def insertScore(
+      state: State
+  ): IO[Either[ScoreRepository.InsertFailed, (Long, model.State)]] = {
+    val row = ScoreTableRowWithoutId.fromState(state)
 
-    ScoreRepository.insertSql(row)
+    ScoreRepository
+      .insertSql(row)
       .withUniqueGeneratedKeys[Long]("id")
-      .flatMap(gameId => EitherT(ScoreRepository.getScore_(gameId))
-                 .map(s => (gameId, s)).value)
+      .attemptT
+      .leftMap(throwable => ScoreRepository.InsertFailed(throwable))
+      .map(gameId => (gameId, state))
+      .value
       .transact(transactor)
-    }
+  }
 
   def updateScore(
       id: Long,
       newState: State
-  ): IO[Either[ScoreRepository.ScoreRepositoryError, model.State]] = {
+  ): IO[Either[ScoreRepository.UpdateFailed, model.State]] = {
     val scoreTableRow = ScoreTableRowWithoutId.fromState(newState)
-
     ScoreRepository
       .updateSql(id, scoreTableRow)
       .withUniqueGeneratedKeys[Long]("id")
-      .flatMap(gameId => ScoreRepository.getScore_(gameId))
+      .attemptT
+      .leftMap(throwable => ScoreRepository.UpdateFailed(throwable))
+      .map(_ => newState)
+      .value
       .transact(transactor)
-
   }
 }
