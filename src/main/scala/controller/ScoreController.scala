@@ -24,9 +24,12 @@ import org.http4s.Response
 
 class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
 
+  implicit val d2 = accumulatingJsonOf[IO, ScoreTableRowWithoutId]
+  implicit val d3 = accumulatingJsonOf[IO, State]
+  implicit val decoder = accumulatingJsonOf[IO, ScoreRequest]
+
   val routes = HttpRoutes.of[IO] {
     case GET -> Root / "hello" => Ok("hello")
-
     case GET -> Root / "scores" / LongVar(gameId) =>
       for {
         scoreResult <- repository.getScore(gameId)
@@ -64,10 +67,10 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
     case req @ POST -> Root / "scored" / LongVar(gameId) / "player" / IntVar(
           playerInt
         ) =>
-    Player.intToPlayer(playerInt) match {
-      case Some(p) => updateScore(ScoreRequest(gameId, p))
-      case None => BadRequest("Invalid player")
-    }
+      Player.intToPlayer(playerInt) match {
+        case Some(p) => updateScore(ScoreRequest(gameId, p))
+        case None    => BadRequest("Invalid player")
+      }
 
     case req @ POST -> Root / "scored" =>
       for {
@@ -116,37 +119,35 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
       } yield (resp)
   }
 
-  implicit val d2 = accumulatingJsonOf[IO, ScoreTableRowWithoutId]
-  implicit val d3 = accumulatingJsonOf[IO, State]
-
   case class CreateResponseJson(gameId: Long)
 
-  implicit val decoder = accumulatingJsonOf[IO, ScoreRequest]
   case class ScoreRequest(gameId: Long, player: Player)
 
   def updateScore(sr: ScoreRequest): IO[Response[IO]] = {
-        for {
-          stateResult <- repository.getScore(sr.gameId)
-          _ <- IO(println(stateResult))
-          updated <- stateResult match {
-            case Left(scoreRepoErr) => fromScoreRepositoryError(scoreRepoErr)
-            case Right(state) =>
-              repository
-                .updateScore(sr.gameId, ScoreService.score(sr.player)(state))
-                .flatMap(dbResult =>
-                  dbResult match {
-                    case Left(scoreRepoErr) =>
-                      fromScoreRepositoryError(scoreRepoErr)
-                    case Right(newState) => {
-                      println(newState)
-                      Ok(toScoreResponseJson(sr.gameId, newState).asJson)
-                    }
-                  }
-                )
-          }
+    val stateTransition: (State => State) = ScoreService.score(sr.player)
 
-        } yield updated
-    }
+    for {
+      stateResult <- repository.getScore(sr.gameId)
+      _ <- IO(println(stateResult))
+      updated <- stateResult match {
+        case Left(scoreRepoErr) => fromScoreRepositoryError(scoreRepoErr)
+        case Right(state) =>
+          repository
+            .updateScore(sr.gameId, stateTransition(state))
+            .flatMap(dbResult =>
+              dbResult match {
+                case Left(scoreRepoErr) =>
+                  fromScoreRepositoryError(scoreRepoErr)
+                case Right(newState) => {
+                  println(newState)
+                  Ok(toScoreResponseJson(sr.gameId, newState).asJson)
+                }
+              }
+            )
+      }
+
+    } yield updated
+  }
 
   def insertScore(state: State): IO[Response[IO]] = {
     repository
@@ -163,46 +164,26 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
       )
   }
 
-  def fromScoreRepositoryError(err: ScoreRepository.ScoreRepositoryError) = {
-    err match {
-      case ScoreRepository.ScoreNotFoundError => BadRequest("Game Not found")
-      case ScoreRepository.StateParseErorrs(errs) =>
-        InternalServerError(s"state errors: ${errs}")
-      case ScoreRepository.UpdateFailed(_) => InternalServerError("Update failed")
-      case ScoreRepository.InsertFailed(_) => InternalServerError("Insert failed")
-    }
-  }
+  def fromScoreRepositoryError(
+      err: ScoreRepository.ScoreRepositoryError
+  ): IO[Response[IO]] = ???
 
   type ScoreResponseJson = ScoreTableRow
 
-  def toScoreResponseJson(id: Long, s: State): ScoreResponseJson =
-    ScoreTableRow(id, ScoreTableRowWithoutId.fromState(s))
+  def toScoreResponseJson(id: Long, s: State): ScoreResponseJson = ???
 
   case class ScoreResponseStringJson(message: String)
 
-  def toScoreResponseStringJson(state: State): ScoreResponseStringJson = {
-    ScoreResponseStringJson(
-      state match {
-        case model.NormalScoring((p1Score, p2Score)) =>
-          s"P1: $p1Score, P2: $p2Score"
-        case model.Deuce             => "deuce"
-        case model.Advantage(player) => s"advantage ${player}"
-        case model.Win(player)       => s"${player} won"
-      }
-    )
-  }
+  def toScoreResponseStringJson(state: State): ScoreResponseStringJson = ???
 
   case class ScoresNested(p1Score: Int, p2Score: Int)
-  implicit val scoresNestedElEnc: ElementEncoder[ScoresNested] =
-    deriveElementEncoder
+  implicit val scoresNestedElEnc: ElementEncoder[ScoresNested] = ???
 
   case class EmptyTagHack[A](opt: Option[A])
 
-  implicit def eee[A]: ElementEncoder[EmptyTagHack[A]] =
-    ElementEncoder.stringEncoder.contramap(e => emptyTagHack(e.opt))
+  implicit def eee[A]: ElementEncoder[EmptyTagHack[A]] = ???
 
-  def emptyTagHack[A](opt: Option[A]): String =
-    opt.map(_.toString()).getOrElse("")
+  def emptyTagHack[A](opt: Option[A]): String = ???
 
   case class ScoreXml(
       @attr id: Long,
@@ -211,18 +192,8 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
       playerThatWon: EmptyTagHack[Int],
       scores: ScoresNested
   )
-  implicit val scoreXmlEnc: XmlEncoder[ScoreXml] = deriveXmlEncoder("AAAA")
+  implicit val scoreXmlEnc: XmlEncoder[ScoreXml] = ???
 
-  def toScoreXml(id: Long, state: State): ScoreXml = {
-    val s = ScoreTableRowWithoutId.fromState(state)
-
-    ScoreXml(
-      id = id,
-      isDeuce = s.isDeuce,
-      playerWithAdvantage = EmptyTagHack(s.playerWithAdvantage),
-      playerThatWon = EmptyTagHack(s.playerThatWon),
-      scores = ScoresNested(s.p1Score, s.p2Score)
-    )
-  }
+  def toScoreXml(id: Long, state: State): ScoreXml = ???
 
 }

@@ -22,89 +22,29 @@ object ScoreRepository {
 
   def getScoreSql(
       id: Long
-  ): doobie.Query0[ScoreTableRowWithoutId] = {
-    val cols = Fragment.const(ScoreTableRowWithoutId.columns.mkString(","))
+  ): doobie.Query0[ScoreTableRowWithoutId] = ???
 
-    fr"SELECT $cols FROM score WHERE id = $id".query
-  }
-
-  def updateSql(id: Long, st: ScoreTableRowWithoutId): doobie.Update0 = {
-    val stuff = ScoreTableRowWithoutId.columns
-      .map(c => s"$c = ?")
-      .mkString(",")
-
-    val sql = s"""
-          UPDATE score
-          SET $stuff
-          WHERE id = $id
-    """
-    Update[ScoreTableRowWithoutId](sql).toUpdate0(st)
-  }
-  def insertSql(st: ScoreTableRowWithoutId): doobie.Update0 = {
-    val cols = ScoreTableRowWithoutId.columns.mkString(",")
-    val questionMarks =
-      ScoreTableRowWithoutId.columns.map(_ => "?").mkString(",")
-
-    val sql = s"INSERT INTO score($cols) VALUES ($questionMarks)"
-    Update[ScoreTableRowWithoutId](sql).toUpdate0(st)
-  }
+  def updateSql(id: Long, st: ScoreTableRowWithoutId): doobie.Update0 = ???
+  def insertSql(st: ScoreTableRowWithoutId): doobie.Update0 = ???
 
   private def getScore_(
       id: Long
-  ): ConnectionIO[Either[ScoreRepositoryError, model.State]] = {
-    getScoreSql(id).option
-      .map {
-        case None => Left(ScoreNotFoundError)
-        case Some(score) => {
-          ScoreTableRowWithoutId.toState(score) match {
-            case Valid(s)      => Right(s)
-            case Invalid(errs) => Left(StateParseErorrs(errs))
-          }
-        }
-      }
-  }
+  ): ConnectionIO[Either[ScoreRepositoryError, model.State]] = ???
 }
 
 class ScoreRepository(transactor: Transactor[IO]) {
   def getScore(
       id: Long
-  ): IO[Either[ScoreRepository.ScoreRepositoryError, model.State]] = {
-    ScoreRepository.getScore_(id).transact(transactor)
-  }
+  ): IO[Either[ScoreRepository.ScoreRepositoryError, model.State]] = ???
 
-  def createScore(): IO[Long] = {
-    sql"INSERT INTO score DEFAULT VALUES".update
-      .withUniqueGeneratedKeys[Long]("id")
-      .transact(transactor)
-  }
+  def createScore(): IO[Long] =  ???
 
   def insertScore(
       state: State
-  ): IO[Either[ScoreRepository.InsertFailed, (Long, model.State)]] = {
-    val row = ScoreTableRowWithoutId.fromState(state)
-
-    ScoreRepository
-      .insertSql(row)
-      .withUniqueGeneratedKeys[Long]("id")
-      .attemptT
-      .leftMap(throwable => ScoreRepository.InsertFailed(throwable))
-      .map(gameId => (gameId, state))
-      .value
-      .transact(transactor)
-  }
+  ): IO[Either[ScoreRepository.InsertFailed, (Long, model.State)]] = ???
 
   def updateScore(
       id: Long,
       newState: State
-  ): IO[Either[ScoreRepository.UpdateFailed, model.State]] = {
-    val scoreTableRow = ScoreTableRowWithoutId.fromState(newState)
-    ScoreRepository
-      .updateSql(id, scoreTableRow)
-      .withUniqueGeneratedKeys[Long]("id")
-      .attemptT
-      .leftMap(throwable => ScoreRepository.UpdateFailed(throwable))
-      .map(_ => newState)
-      .value
-      .transact(transactor)
-  }
+  ): IO[Either[ScoreRepository.UpdateFailed, model.State]] = ???
 }
