@@ -14,30 +14,13 @@ final case class Advantage(advantage: Player) extends State
 final case class Win(win: Player) extends State
 
 object State {
-  implicit val decodeNormalScoring: Decoder[NormalScoring] = deriveDecoder
-  implicit val decodeAdvantage: Decoder[Advantage] = deriveDecoder
-  implicit val decodeWin: Decoder[Win] = deriveDecoder
+  implicit val decodeNormalScoring: Decoder[NormalScoring] = ???
+  implicit val decodeAdvantage: Decoder[Advantage] = ???
+  implicit val decodeWin: Decoder[Win] = ???
 
-  val decodeDeuce: Decoder[State] = Decoder[String].emap(s =>
-    s match {
-      case "deuce" => Right(Deuce)
-      case _       => Left("expected: deuce")
-    }
-  )
+  val decodeDeuce: Decoder[State] = ???
 
-  implicit val decodeState: Decoder[State] = {
-    def decodeOneOf[A](decoders: List[Decoder[A]]) = decoders.reduceLeft(_ or _)
-
-    decodeOneOf(
-      List[Decoder[State]](
-        Decoder[NormalScoring].widen,
-        Decoder[Advantage].widen,
-        Decoder[Win].widen,
-        decodeDeuce
-      )
-    )
-  }
-
+  implicit val decodeState: Decoder[State] = ???
 }
 
 sealed trait Score
@@ -48,30 +31,9 @@ final case object Score40 extends Score
 
 object Score {
 
-  def scoreToInt(score: Score): Int =
-    score match {
-      case ScoreLove => 0
-      case Score15   => 1
-      case Score30   => 2
-      case Score40   => 3
-    }
-
-  def intToScore(i: Int): Option[Score] =
-    i match {
-      case 0 => Some(ScoreLove)
-      case 1 => Some(Score15)
-      case 2 => Some(Score30)
-      case 3 => Some(Score40)
-      case _ => None
-    }
-
-  implicit val decodeScore: Decoder[Score] = Decoder[String].emap {
-    case "love" => Right(ScoreLove)
-    case "15"   => Right(Score15)
-    case "30"   => Right(Score30)
-    case "40"   => Right(Score40)
-    case other  => Left(s"invalid score: $other")
-  }
+  def scoreToInt(score: Score): Int = ???
+  def intToScore(i: Int): Option[Score] = ???
+  implicit val decodeScore: Decoder[Score] = ???
 }
 
 sealed trait Player
@@ -80,24 +42,42 @@ final case object P2 extends Player
 
 object Player {
 
-  def intToPlayer(i: Int): Option[Player] =
-    i match {
-      case 1 => Some(P1)
-      case 2 => Some(P2)
-      case _ => None
-    }
+  def intToPlayer(i: Int): Option[Player] = ???
+  def playerToInt(player: Player): Int = ???
 
-  def playerToInt(player: Player): Int =
-    player match {
-      case P1 => 1
-      case P2 => 2
-    }
-
-  implicit val decodePlayer: Decoder[Player] = Decoder[String].emap {
-    case "P1"  => Right(P1)
-    case "P2"  => Right(P2)
-    case other => Left(s"invalid player: $other")
-  }
+  implicit val decodePlayer: Decoder[Player] = ???
 
 }
+
+object JsonSchemaa {
+  import json._
+  import com.github.andyglow.jsonschema.AsCirce._
+  import json.schema.Version._
+
+  val a: json.Schema[Advantage] =
+    Json.schema[Advantage].toDefinition("advantage")
+  val w: json.Schema[Win] = Json.schema[Win].toDefinition("win")
+  val p: json.Schema[Player] = Json.schema[Player].toDefinition("player")
+  val s: json.Schema[NormalScoring] =
+    Json.schema[NormalScoring].toDefinition("score")
+
+  implicit val state: json.Schema[State] = Json.schema[State]
+
+  def print = {
+    println(JsonSchemaa.w.asCirce(Draft04()).toString)
+    println(JsonSchemaa.s.asCirce(Draft04()).toString)
+    println(JsonSchemaa.a.asCirce(Draft04()).toString)
+    println(oneOf("state", List("win", "score", "advantage")))
+  }
+
+  def oneOf(name: String, refs: List[String]): String = {
+    def toRef(r: String) = s"""{ "ref" : #/link/to/$r }"""
+
+    s"""
+      {
+        "$$schema" : "http://json-schema.org/draft-04/schema#",
+        "oneOf" : ${refs.map(toRef).asJson}
+      }
+    """
+  }
 }

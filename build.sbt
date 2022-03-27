@@ -26,6 +26,7 @@ lazy val LogbackVersion = "1.2.3"
 
 lazy val Specs2Version  = "4.10.6"
 
+lazy val ScalaJsonSchemaVersion = "0.7.8"
 
 lazy val root = (project in file("."))
   .configs(IntegrationTest)
@@ -48,7 +49,7 @@ lazy val root = (project in file("."))
       "org.flywaydb"          %  "flyway-core"          % FlywayVersion,
 
       "io.circe"              %% "circe-generic"        % CirceVersion,
-      "io.circe"              %% "circe-literal"        % CirceVersion      % "it,test",
+      "io.circe"              %% "circe-literal"        % CirceVersion,
       "io.circe"              %% "circe-optics"         % CirceVersion      % "it",
 
       "com.github.pureconfig" %% "pureconfig"             % PureConfigVersion,
@@ -62,6 +63,8 @@ lazy val root = (project in file("."))
 
       "com.chuusai" %% "shapeless" % "2.3.3",
 
+      "com.github.andyglow" %% "scala-jsonschema" % ScalaJsonSchemaVersion,
+      "com.github.andyglow" %% "scala-jsonschema-circe-json" % ScalaJsonSchemaVersion,
     )
   )
 
