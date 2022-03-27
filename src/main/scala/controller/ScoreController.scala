@@ -64,10 +64,10 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
     case req @ POST -> Root / "scored" / LongVar(gameId) / "player" / IntVar(
           playerInt
         ) =>
-    Player.intToPlayer(playerInt) match {
-      case Some(p) => updateScore(ScoreRequest(gameId, p))
-      case None => BadRequest("Invalid player")
-    }
+      Player.intToPlayer(playerInt) match {
+        case Some(p) => updateScore(ScoreRequest(gameId, p))
+        case None    => BadRequest("Invalid player")
+      }
 
     case req @ POST -> Root / "scored" =>
       for {
@@ -125,28 +125,31 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
   case class ScoreRequest(gameId: Long, player: Player)
 
   def updateScore(sr: ScoreRequest): IO[Response[IO]] = {
-        for {
-          stateResult <- repository.getScore(sr.gameId)
-          _ <- IO(println(stateResult))
-          updated <- stateResult match {
-            case Left(scoreRepoErr) => fromScoreRepositoryError(scoreRepoErr)
-            case Right(state) =>
-              repository
-                .updateScore(sr.gameId, ScoreService.score(sr.player)(state))
-                .flatMap(dbResult =>
-                  dbResult match {
-                    case Left(scoreRepoErr) =>
-                      fromScoreRepositoryError(scoreRepoErr)
-                    case Right(newState) => {
-                      println(newState)
-                      Ok(toScoreResponseJson(sr.gameId, newState).asJson)
-                    }
-                  }
-                )
-          }
 
-        } yield updated
-    }
+    val stateTransition: (State => State) = ScoreService.score(sr.player)
+
+    for {
+      stateResult <- repository.getScore(sr.gameId)
+      _ <- IO(println(stateResult))
+      updated <- stateResult match {
+        case Left(scoreRepoErr) => fromScoreRepositoryError(scoreRepoErr)
+        case Right(state) =>
+          repository
+            .updateScore(sr.gameId, stateTransition(state))
+            .flatMap(dbResult =>
+              dbResult match {
+                case Left(scoreRepoErr) =>
+                  fromScoreRepositoryError(scoreRepoErr)
+                case Right(newState) => {
+                  println(newState)
+                  Ok(toScoreResponseJson(sr.gameId, newState).asJson)
+                }
+              }
+            )
+      }
+
+    } yield updated
+  }
 
   def insertScore(state: State): IO[Response[IO]] = {
     repository
@@ -168,8 +171,10 @@ class ScoreController(repository: ScoreRepository) extends Http4sDsl[IO] {
       case ScoreRepository.ScoreNotFoundError => BadRequest("Game Not found")
       case ScoreRepository.StateParseErorrs(errs) =>
         InternalServerError(s"state errors: ${errs}")
-      case ScoreRepository.UpdateFailed(_) => InternalServerError("Update failed")
-      case ScoreRepository.InsertFailed(_) => InternalServerError("Insert failed")
+      case ScoreRepository.UpdateFailed(_) =>
+        InternalServerError("Update failed")
+      case ScoreRepository.InsertFailed(_) =>
+        InternalServerError("Insert failed")
     }
   }
 
